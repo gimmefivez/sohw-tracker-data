@@ -299,7 +299,7 @@ input[type=date].inline-edit{min-width:100px;}
     <div class="header-btns">
       <span class="sessions-badge" id="sessionsBadge">0 sessions</span>
       <button class="btn-sm btn-editor" id="editorBtn" onclick="toggleEditorMode()">Editor OFF</button>
-      <button class="btn-sm btn-download" onclick="saveDataJSON()">💾 Save Data</button>
+      <button class="btn-sm btn-download" id="saveDataBtn" onclick="saveDataJSON()">💾 Save Data</button>
     </div>
   </div>
 
@@ -508,6 +508,16 @@ input[type=date].inline-edit{min-width:100px;}
     <!-- INBOUND CROSSED TAB -->
     <div class="tab-page" id="tab-inbound">
       <div class="cards" id="inboundCards"></div>
+      <div class="transit-row">
+        <div class="panel">
+          <div class="panel-title">Inbound Hormuz Transits — Non-Sanctioned Vessels</div>
+          <div class="chart-wrap tall"><canvas id="inboundNonSanc"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Inbound Hormuz Transits — Sanctioned Vessels</div>
+          <div class="chart-wrap tall"><canvas id="inboundSanc"></canvas></div>
+        </div>
+      </div>
       <div id="editorInboundControls" style="display:none;margin-bottom:10px;">
         <button class="btn-sm" style="background:var(--border2);color:var(--accent);" onclick="toggleAddForm('addInboundForm')">⊕ Add Vessel</button>
       </div>
@@ -690,7 +700,7 @@ function getProdColor(prod,idx){return PRODUCT_COLORS[prod]||_FALLBACK_COLORS[id
 
 // PASSWORD SYSTEM
 const PW_ZOE = 'Zoe~Only333!';
-const PW_INTERNAL = 'HAC12* dkQk';
+const PW_INTERNAL = 'HACOnly$$$';
 const PW_GUEST = 'Transit@SOH';
 let accessLevel = null; // 'zoe' | 'internal' | 'guest'
 
@@ -781,8 +791,9 @@ function init() {
   initFilterDropdowns();
   state.editorMode = false;
   updateEditorUI();
-  if (accessLevel === 'guest') {
+  if (accessLevel === 'guest' || accessLevel === 'internal') {
     document.getElementById('editorBtn').style.display = 'none';
+    document.getElementById('saveDataBtn').style.display = 'none';
   }
   populateFilterOptions();
   saveAndRender();
@@ -845,13 +856,15 @@ function makeCrossingKey(imo,idx){return imo+'_x'+idx;}
 function imoFromKey(key){
   if(!key)return'';
   if(key.includes('_intomeg_'))return key.split('_intomeg_')[0];
-  const m=key.match(/^(.+)_x\d+$/);
+  const m=key.match(/^(.+)_x(\d+)$/);
   return m?m[1]:key;
 }
 function nextCrossingIdx(imo){ const existing=getCrossingsForIMO(imo); if(!existing.length)return 1; return Math.max(...existing.map(([k])=>parseInt(k.split('_x')[1]||0)))+1; }
 function getCrossingsForIMO(imo){
   if(!state.crossedIMOs||typeof state.crossedIMOs!=='object')return[];
-  return Object.entries(state.crossedIMOs).filter(([k])=>imoFromKey(k)===imo).sort(([a],[b])=>a.localeCompare(b));
+  return Object.entries(state.crossedIMOs)
+    .filter(([k,v])=>imoFromKey(k)===imo && v && typeof v==='object' && Object.keys(v).length>0)
+    .sort(([a],[b])=>a.localeCompare(b));
 }
 function addCrossing(imo,type,data){ const idx=nextCrossingIdx(imo); const key=makeCrossingKey(imo,idx); state.crossedIMOs[key]=Object.assign({crossingType:type==='out'?'outbound':'inbound'},data); return key; }
 
@@ -860,7 +873,7 @@ function autoTag(imo, date) {
   const manual=(state.userTags[imo]||{})[date];
   if(manual)return manual;
   const crossings=getCrossingsForIMO(imo);
-  const confirmed=crossings.filter(([,v])=>!v.falseAlarm&&v.crossingType==='outbound'&&v.dateCrossed<=date);
+  const confirmed=crossings.filter(([,v])=>v&&!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound'&&v.dateCrossed<=date);
   if(confirmed.length){
     const inbounds=Object.values(state.inboundIMOs).filter(v=>v.confirmed&&imoFromKey(Object.keys(state.inboundIMOs).find(k=>state.inboundIMOs[k]===v)||'')===imo);
     const afterCross=inbounds.filter(v=>(v.sohwDate||v.dateEnteredMEG)===date);
@@ -931,7 +944,6 @@ function saveAndRender(){
   renderMetrics();
   renderOverviewCharts();
   renderOverviewTable();
-  renderProductTrends();
   renderChangelog();
   renderCrossedTable();
   renderWatchlist();
@@ -994,6 +1006,9 @@ function destroyChart(id){if(_charts[id]){_charts[id].destroy();delete _charts[i
 
 function renderOverviewCharts(){
   if(!state.sessions.length)return;
+  // Only render if overview tab is visible
+  const tab=document.getElementById('tab-overview');
+  if(!tab||!tab.classList.contains('active'))return;
   renderProductQtyChart();
   renderVesselCountChart();
   renderTrendLineChart();
@@ -1216,7 +1231,7 @@ function renderProductTrends(){
   const outProds=sortProducts(Object.keys(outsideMap));
   const datasets2=outProds.map((p,i)=>({label:p,data:dates.map(d=>(outsideMap[p]||{})[d]||0),backgroundColor:getProdColor(p,i),stack:'a'}));
   const ctx2=document.getElementById('outsideMegBar').getContext('2d');
-  _charts['outsideMegBar']=new Chart(ctx2,{type:'bar',data:{labels:dates,datasets:datasets2},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},coord:true,y:{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.min<8000000)ax.min=8000000;}}}}});
+  _charts['outsideMegBar']=new Chart(ctx2,{type:'bar',data:{labels:dates,datasets:datasets2},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.min<8000000)ax.min=8000000;}}}}});
   // Summary table - all sessions + diff last 2
   const tb=document.getElementById('productSummaryTbody');
   const allSessionDates=dates;
@@ -1301,7 +1316,7 @@ function renderCrossedTable(){
   const ld=dates[dates.length-1];
 
   // Cards
-  const allCrossings=Object.entries(state.crossedIMOs);
+  const allCrossings=Object.entries(state.crossedIMOs).filter(([,v])=>v&&typeof v==='object'&&Object.keys(v).length>0);
   const confirmed=allCrossings.filter(([,v])=>!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound');
   const suspicious=allCrossings.filter(([,v])=>v.suspicious&&v.crossingType==='outbound');
   const totalQty=confirmed.reduce((s,[,v])=>s+(parseFloat(v.qty)||0),0);
@@ -1312,11 +1327,9 @@ function renderCrossedTable(){
     <div class="card"><div class="card-label">Total Cargo Crossed (t)</div><div class="card-value">${fmtNum(Math.round(totalQty))}</div></div>
     <div class="card"><div class="card-label">Unique Vessels</div><div class="card-value blue">${uniqueIMOs}</div></div>`;
 
-  renderTransitCharts();
-
   const tb=document.getElementById('crossedTbody');
   const rows=[];
-  for(const [key,info] of allCrossings.filter(([,v])=>v.crossingType==='outbound')){
+  for(const [key,info] of allCrossings.filter(([,v])=>v && v.crossingType==='outbound' && Object.keys(v).length>0)){
     const imo=imoFromKey(key);
     const d=byIMO[imo];
     const latestDate=d?Object.keys(d.rowsByDate).sort().pop():null;
@@ -1377,7 +1390,7 @@ function buildTransitChart(canvasId,sanctioned){
   const labels=allDates.map(d=>d.slice(5).replace('-','/'));
   const dailyByClass={};
   for(const [key,v] of Object.entries(state.crossedIMOs)){
-    if(v.crossingType!=='outbound'||v.falseAlarm)continue;
+    if(!v||!Object.keys(v).length||v.crossingType!=='outbound'||v.falseAlarm)continue;
     const imo=imoFromKey(key);
     const d=byIMO[imo];
     const latestDate=d?Object.keys(d.rowsByDate).sort().pop():null;
@@ -1397,7 +1410,7 @@ function buildTransitChart(canvasId,sanctioned){
   const datasets=classes.filter(c=>labels.some(l=>dailyByClass[l]?.[c])).map(c=>({label:c,data:labels.map(l=>(dailyByClass[l]?.[c]||0)),backgroundColor:TRANSIT_CLASS_COLORS[c]||'#555',stack:'a',yAxisID:'y'}));
   datasets.push({label:'Cumulative',data:cumData,type:'line',borderColor:'#fff',backgroundColor:'transparent',yAxisID:'yRight',tension:.3,pointRadius:2,borderWidth:1.5,order:-1});
   const ctx=document.getElementById(canvasId).getContext('2d');
-  _charts[canvasId]=new Chart(ctx,{data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:9}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:9},maxRotation:45}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Qty (t)',color:'#7090a8',font:{size:9}}},yRight:{position:'right',ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Cumulative',color:'#7090a8',font:{size:9}},grid:{drawOnChartArea:false}}}}});
+  _charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:9}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:9},maxRotation:45}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Qty (t)',color:'#7090a8',font:{size:9}}},yRight:{position:'right',ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Cumulative',color:'#7090a8',font:{size:9}},grid:{drawOnChartArea:false}}}}});
 }
 
 function dateRange(start,end){
@@ -1438,6 +1451,187 @@ function detectInboundCrossings(){
   }
 }
 
+function renderInboundCharts(){
+  destroyChart('inboundNonSanc');
+  destroyChart('inboundSanc');
+  buildInboundChart('inboundNonSanc', false);
+  buildInboundChart('inboundSanc', true);
+}
+
+function buildInboundChart(canvasId, sanctioned){
+  // Date range: 2026-03-01 to latest session date
+  const sessionDates=state.sessions.map(s=>s.date).sort();
+  if(!sessionDates.length)return;
+  const endDate=sessionDates[sessionDates.length-1];
+  const allDates=dateRange('2026-03-01', endDate);
+  const labels=allDates.map(d=>d.slice(5).replace('-','/'));
+
+  // Build daily vessel data keyed by MM/DD label
+  // dailyData[label][cls] = [{name,product,qty,origin,dest}]
+  const dailyData={};
+  labels.forEach(l=>dailyData[l]={});
+
+  for(const [k,v] of Object.entries(state.inboundIMOs)){
+    if(!v||!v.confirmed)continue;
+    const realIMO=imoFromKey(k);
+    // Resolve risk
+    let risk=(v.risk||'').trim().toLowerCase();
+    if(!risk){
+      const d=byIMO[realIMO];
+      if(d&&d.rowsByDate){
+        const ld=Object.keys(d.rowsByDate).sort().pop();
+        risk=(d.rowsByDate[ld]?.[0]?.['RISK RATING']||'').toLowerCase();
+      }
+    }
+    const isSanc=risk==='sanctioned';
+    if(sanctioned?!isSanc:isSanc)continue;
+
+    const dt=v.dateEnteredMEG||v.sohwDate||'';
+    if(!dt)continue;
+    const label=dt.slice(5).replace('-','/');
+    if(!dailyData[label])continue;
+
+    const cls=v.cls||'Unknown';
+    if(!dailyData[label][cls])dailyData[label][cls]=[];
+
+    // Resolve tooltip fields
+    const d=byIMO[realIMO];
+    const ld=d&&d.rowsByDate?Object.keys(d.rowsByDate).sort().pop():null;
+    const lr=d&&ld?d.rowsByDate[ld][0]:{};
+    const product=v.product&&v.product!=='—'&&v.product!=='Unknown'?v.product:(lr['LATEST PRODUCT']||'—');
+    const qty=parseFloat(v.qty)||parseFloat(lr['QUANTITY (t)'])||0;
+    const origin=v.origin||(lr['ORIGIN']||'—');
+    const dest=lr['DESTINATION']||'—';
+
+    dailyData[label][cls].push({
+      name:v.name||realIMO,
+      product,
+      qty:Math.round(qty),
+      origin,
+      dest
+    });
+  }
+
+  // Build datasets by class
+  const classesPresent=[...new Set(labels.flatMap(l=>Object.keys(dailyData[l])))];
+  const orderedClasses=[...CLASS_ORDER.filter(c=>classesPresent.includes(c)),...classesPresent.filter(c=>!CLASS_ORDER.includes(c)).sort()];
+  const CLASS_COLORS_MAP={'VLCC+':'#ef5350','Suezmax':'#ff9800','LR2':'#ffc107','Aframax':'#00bcd4','LR1':'#42a5f5','MR2':'#4caf50','MR1':'#ab47bc'};
+
+  // Cumulative line
+  let cum=0;
+  const cumData=labels.map(l=>{
+    const total=Object.values(dailyData[l]).reduce((s,arr)=>s+arr.length,0);
+    if(total>0)cum++;
+    return cum;
+  });
+
+  const datasets=orderedClasses.map(cls=>({
+    label:cls,
+    type:'bar',
+    data:labels.map(l=>(dailyData[l][cls]||[]).length),
+    backgroundColor:CLASS_COLORS_MAP[cls]||'#888',
+    stack:'a',
+    yAxisID:'y',
+    _vessels:labels.reduce((acc,l)=>{acc[l]=dailyData[l][cls]||[];return acc;},{})
+  }));
+  datasets.push({
+    label:'Cumulative',
+    type:'line',
+    data:cumData,
+    borderColor:'#fff',
+    backgroundColor:'transparent',
+    yAxisID:'yRight',
+    tension:.3,
+    pointRadius:2,
+    borderWidth:1.5,
+    order:-1
+  });
+
+  // Custom tooltip
+  const externalTooltip=(context)=>{
+    const {chart,tooltip}=context;
+    let el=chart.canvas.parentNode.querySelector('.inb-tooltip');
+    if(!el){
+      el=document.createElement('div');
+      el.className='inb-tooltip';
+      el.style.cssText='position:absolute;background:#111927;border:1px solid #243a56;border-radius:5px;padding:8px 12px;font-size:11px;color:#c8d8e8;pointer-events:none;z-index:99;max-width:280px;min-width:160px;font-family:Calibri,sans-serif;';
+      chart.canvas.parentNode.style.position='relative';
+      chart.canvas.parentNode.appendChild(el);
+    }
+    if(tooltip.opacity===0){el.style.opacity='0';return;}
+
+    const date=tooltip.title?.[0]||'';
+    // Find which bar datasets are active (not cumulative line)
+    const dps=tooltip.dataPoints||[];
+    const barDps=dps.filter(dp=>dp.dataset.label!=='Cumulative'&&dp.dataset._vessels);
+
+    // Check if hovering cumulative line
+    const cumDp=dps.find(dp=>dp.dataset.label==='Cumulative');
+    const cumPixelY=cumDp&&chart.scales.yRight?chart.scales.yRight.getPixelForValue(cumDp.parsed.y):null;
+    const onCumLine=cumPixelY!=null&&Math.abs(tooltip.caretY-cumPixelY)<18;
+
+    let html='';
+    if(onCumLine&&cumDp){
+      html=`<div style="color:#4fc3f7;font-weight:700;margin-bottom:4px;">${date}</div>`;
+      html+=`<div>Cumulative transits: <strong>${cumDp.parsed.y}</strong></div>`;
+    } else {
+      html=`<div style="color:#4fc3f7;font-weight:700;margin-bottom:6px;">${date}</div>`;
+      for(const dp of barDps){
+        if(!dp.parsed.y)continue;
+        const vessels=dp.dataset._vessels[date]||[];
+        if(!vessels.length)continue;
+        html+=`<div style="color:${dp.dataset.backgroundColor};font-weight:700;margin-top:4px;">${dp.dataset.label} (${vessels.length})</div>`;
+        vessels.forEach(v=>{
+          html+=`<div style="margin-left:8px;margin-top:2px;border-left:2px solid ${dp.dataset.backgroundColor};padding-left:6px;">`;
+          html+=`<span style="color:#81d4fa;">${v.name}</span><br>`;
+          html+=`<span style="color:#7090a8;">Product: </span>${v.product}<br>`;
+          if(v.qty>0)html+=`<span style="color:#7090a8;">Qty: </span>${v.qty.toLocaleString()} t<br>`;
+          if(v.origin&&v.origin!=='—')html+=`<span style="color:#7090a8;">Origin: </span>${v.origin}<br>`;
+          if(v.dest&&v.dest!=='—')html+=`<span style="color:#7090a8;">Dest: </span>${v.dest}`;
+          html+='</div>';
+        });
+      }
+      if(!html.includes('color:#81d4fa')){
+        html+=`<div style="color:#4a6a82;">No transits on this date</div>`;
+      }
+    }
+    el.innerHTML=html;
+    el.style.opacity='1';
+
+    // Position tooltip
+    const pos=chart.canvas.getBoundingClientRect();
+    const x=tooltip.caretX;
+    const y=tooltip.caretY;
+    const tw=el.offsetWidth||200;
+    const th=el.offsetHeight||100;
+    const cw=chart.canvas.offsetWidth;
+    const ch=chart.canvas.offsetHeight;
+    el.style.left=(x+tw+10>cw?x-tw-10:x+10)+'px';
+    el.style.top=(y+th+10>ch?y-th-10:y+10)+'px';
+  };
+
+  const ctx=document.getElementById(canvasId);
+  if(!ctx)return;
+  _charts[canvasId]=new Chart(ctx.getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#7090a8',font:{size:9}}},
+        tooltip:{enabled:false,external:externalTooltip}
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:'#7090a8',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:20}},
+        y:{stacked:true,ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Daily Count',color:'#7090a8',font:{size:9}},min:0},
+        yRight:{position:'right',ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Cumulative',color:'#7090a8',font:{size:9}},grid:{drawOnChartArea:false},min:0}
+      }
+    }
+  });
+}
+
 function renderInboundTable(){
   if(!state.inboundIMOs||typeof state.inboundIMOs!=='object')state.inboundIMOs={};
   detectInboundCrossings();
@@ -1456,7 +1650,7 @@ function renderInboundTable(){
   const tb=document.getElementById('inboundTbody');
   const rows=Object.entries(state.inboundIMOs);
   const filtered=rows.filter(([k,v])=>{
-    const realIMO=k.includes('_intomeg_')?k.split('_intomeg_')[0]:k;
+    const realIMO=imoFromKey(k);
     if(statusF==='confirmed'&&!v.confirmed)return false;
     if(statusF==='pending'&&v.confirmed)return false;
     if(clsF.length&&!clsF.includes(v.cls||''))return false;
@@ -1467,7 +1661,7 @@ function renderInboundTable(){
   });
   if(!filtered.length){tb.innerHTML='<tr><td colspan="15" style="color:var(--text3);text-align:center;padding:12px;">No inbound records.</td></tr>';return;}
   tb.innerHTML=filtered.map(([k,v])=>{
-    const realIMO=k.includes('_intomeg_')?k.split('_intomeg_')[0]:k;
+    const realIMO=imoFromKey(k);
     const editable=state.editorMode;
     const statusBadge=v.confirmed?'<span class="confirmed-badge">✓ Confirmed</span>':'<span class="pending-badge">Pending</span>';
     const actBtns=editable?`${!v.confirmed?`<button class="btn-confirm-susp" onclick="confirmInbound('${k}')">✅ Confirm</button>`:''}
@@ -1493,7 +1687,7 @@ function renderInboundTable(){
 function updateInbound(k,field,val){state.inboundIMOs[k][field]=val;logEdit('Inbound Edited',k+' / '+field+': "'+val+'"');}
 function confirmInbound(k){
   state.inboundIMOs[k].confirmed=true;
-  const realIMO=k.includes('_intomeg_')?k.split('_intomeg_')[0]:k;
+  const realIMO=imoFromKey(k);
   const v=state.inboundIMOs[k];
   addCrossing(realIMO,'in',{dateCrossed:v.dateEnteredMEG||v.sohwDate,soheDate:v.soheDate,product:v.product,qty:0,crossingType:'inbound'});
   if(!state.userTags[realIMO])state.userTags[realIMO]={};
@@ -1503,7 +1697,7 @@ function confirmInbound(k){
 }
 function rejectInbound(k){
   const v=state.inboundIMOs[k];
-  const realIMO=k.includes('_intomeg_')?k.split('_intomeg_')[0]:k;
+  const realIMO=imoFromKey(k);
   delete state.inboundIMOs[k];
   logEdit('Inbound Rejected',(v?.name||realIMO)+' ('+realIMO+')');
   saveAndRender();
@@ -1530,7 +1724,7 @@ function renderWatchlist(){
   const clsf=document.getElementById('wlClass').value;
   const rf=document.getElementById('wlRisk').value;
   const sf=(document.getElementById('wlSearch').value||'').toLowerCase();
-  const confirmedIMOs=new Set(Object.entries(state.crossedIMOs).filter(([,v])=>!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound').map(([k])=>imoFromKey(k)));
+  const confirmedIMOs=new Set(Object.entries(state.crossedIMOs).filter(([,v])=>v&&Object.keys(v).length>0&&!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound').map(([k])=>imoFromKey(k)));
   const items=[];
   for(const [imo,d] of Object.entries(byIMO)){
     if(confirmedIMOs.has(imo))continue;
@@ -1677,7 +1871,7 @@ function renderTagPie(){
   const ctx=document.getElementById('tagPieChart').getContext('2d');
   _charts['tagPieChart']=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data:labels.map(t=>tagCount[t]),backgroundColor:labels.map(t=>tagColors[t]||'#555')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}}}});
   // Matrix tag metrics
-  const outCount=Object.entries(state.crossedIMOs).filter(([,v])=>!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound').length;
+  const outCount=Object.entries(state.crossedIMOs).filter(([,v])=>v&&Object.keys(v).length>0&&!v.falseAlarm&&!v.suspicious&&v.crossingType==='outbound').length;
   document.getElementById('matrixTagMetrics').innerHTML=labels.map(t=>`<div class="card"><div class="card-label">${t}</div><div class="card-value">${tagCount[t]}</div></div>`).join('')+`<div class="card"><div class="card-label">Crossed Outbound</div><div class="card-value green">${outCount}</div></div>`;
 }
 function clearMxFilters(){['mxProd','mxClass','mxRisk','mxTag'].forEach(id=>document.getElementById(id).value='');document.getElementById('mxSearch').value='';renderMatrix();}
@@ -2050,13 +2244,15 @@ function switchTab(name){
   const tabs=document.querySelectorAll('.tab');
   const tabMap={overview:0,trends:1,'ballast':2,outbound:3,inbound:4,watchlist:5,matrix:6,changelog:7,blink:8,editlog:9};
   if(tabs[tabMap[name]])tabs[tabMap[name]].classList.add('active');
+  if(name==='overview'){renderMetrics();renderOverviewCharts();renderOverviewTable();}
   if(name==='matrix')renderMatrix();
   if(name==='ballast')renderBallast();
-  if(name==='outbound')renderCrossedTable();
-  if(name==='inbound'){detectInboundCrossings();renderInboundTable();}
+  if(name==='outbound'){renderCrossedTable();renderTransitCharts();}
+  if(name==='inbound'){detectInboundCrossings();renderInboundTable();renderInboundCharts();}
   if(name==='watchlist')renderWatchlist();
   if(name==='blink')renderBlinkTable();
   if(name==='editlog')renderEditLog();
+  if(name==='trends')renderProductTrends();
 }
 
 // ═══════════════════════════════════════════════════════
