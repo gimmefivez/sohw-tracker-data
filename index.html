@@ -511,13 +511,13 @@ input[type=date].inline-edit{min-width:100px;}
       </div>
       <div class="tbl-wrap"><table id="crossedTable">
         <thead><tr>
-          <th onclick="sortTable('crossedTable',0)">Vessel</th>
+          <th onclick="crSort('name')">Vessel</th>
           <th onclick="sortTable('crossedTable',1)">IMO</th>
-          <th onclick="sortTable('crossedTable',2)">Class</th>
+          <th onclick="crSort('cls')">Class</th>
           <th onclick="sortTable('crossedTable',3)">Product</th>
           <th onclick="sortTable('crossedTable',4)">Qty (t)</th>
           <th onclick="sortTable('crossedTable',5)">Risk</th>
-          <th onclick="sortTable('crossedTable',6)">Date Crossed</th>
+          <th onclick="crSort('date')">Date Crossed</th>
           <th onclick="sortTable('crossedTable',7)">Origin</th>
           <th onclick="sortTable('crossedTable',8)">Actual Destination</th>
           <th onclick="sortTable('crossedTable',9)">Remarks</th>
@@ -578,7 +578,7 @@ input[type=date].inline-edit{min-width:100px;}
           <th onclick="sortTable('inboundTable',4)">Qty (t)</th>
           <th onclick="sortTable('inboundTable',5)">Ballast/Laden</th>
           <th onclick="sortTable('inboundTable',6)">Risk</th>
-          <th onclick="sortTable('inboundTable',7)">Date Entered MEG</th>
+          <th onclick="inbSort('date')">Date Entered MEG</th>
           <th onclick="sortTable('inboundTable',8)">Actual Destination</th>
           <th onclick="sortTable('inboundTable',9)">Remarks</th>
           <th onclick="sortTable('inboundTable',10)">Status</th>
@@ -1443,7 +1443,16 @@ function renderCrossedTable(){
     if(sf&&!resolvedName.toLowerCase().includes(sf)&&!imo.includes(sf))continue;
     rows.push({key,imo,info,resolvedName,resolvedCls,resolvedProduct,resolvedOrigin,resolvedDest,resolvedRisk});
   }
-  rows.sort((a,b)=>(b.info.dateCrossed||'').localeCompare(a.info.dateCrossed||''));
+  // Apply user sort or default to date crossed descending
+  const _crKey=window._crSortKey||'date';
+  const _crAsc=window._crSortAsc!==undefined?window._crSortAsc:false;
+  rows.sort((a,b)=>{
+    let va,vb;
+    if(_crKey==='name'){va=a.resolvedName||'';vb=b.resolvedName||'';}
+    else if(_crKey==='cls'){va=a.resolvedCls||'';vb=b.resolvedCls||'';}
+    else{va=a.info.dateCrossed||'';vb=b.info.dateCrossed||'';}
+    return _crAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
   if(!rows.length){tb.innerHTML='<tr><td colspan="13" style="color:var(--text3);text-align:center;padding:12px;">No crossing records.</td></tr>';return;}
   // Product sub-cards
   const prodQtyMap={};
@@ -1990,6 +1999,15 @@ function renderInboundTable(){
     if(sf&&!v.name?.toLowerCase().includes(sf)&&!realIMO.includes(sf))return false;
     return true;
   });
+  // Apply sort
+  const _inbKey=window._inbSortKey||'date';
+  const _inbAsc=window._inbSortAsc!==undefined?window._inbSortAsc:false;
+  filtered.sort(([,a],[,b])=>{
+    let va,vb;
+    if(_inbKey==='name'){va=a.name||'';vb=b.name||'';}
+    else{va=a.dateEnteredMEG||a.sohwDate||'';vb=b.dateEnteredMEG||b.sohwDate||'';}
+    return _inbAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
   if(!filtered.length){tb.innerHTML='<tr><td colspan="15" style="color:var(--text3);text-align:center;padding:12px;">No inbound records.</td></tr>';return;}
   tb.innerHTML=filtered.map(([k,v])=>{
     const realIMO=imoFromKey(k);
@@ -2017,7 +2035,9 @@ function renderInboundTable(){
       <td data-sort="${v.dateEnteredMEG||''}">${editable?`<input type="date" class="inline-edit" value="${v.dateEnteredMEG||''}" onchange="updateInbound('${k}','dateEnteredMEG',this.value)">`:(v.dateEnteredMEG||'—')}</td>
       <td style="${destStyle}">${editable?`<input class="inline-edit" value="${_dest.replace(/"/g,'&quot;')}" placeholder="Destination..." style="${destStyle}">`:((_dest)||'—')}</td>
       <td style="white-space:normal;min-width:160px;">${editable?`<textarea class="inline-edit" rows="2" style="width:100%;resize:vertical;min-width:150px;" onchange="updateInbound('${k}','remarks',this.value)">${remarksVal}</textarea>`:(v.remarks||'—')}</td>
-      <td>${statusBadge}</td>
+      <td>${editable
+        ?`<input class="inline-edit" value="${(v.status||'').replace(/"/g,'&quot;')}" placeholder="Status..." onchange="updateInbound('${k}','status',this.value)">`
+        :(v.status||statusBadge)}</td>
       <td>${actBtns}</td>
     </tr>`;
   }).join('');
@@ -2722,9 +2742,15 @@ function sortTable(tableId,colIdx){
 
 function toggleAddForm(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'||!el.style.display?'block':'none';}
 
+function crSort(key){
+  if(window._crSortKey===key){window._crSortAsc=!window._crSortAsc;}
+  else{window._crSortKey=key;window._crSortAsc=(key==='name'||key==='cls');}
+  renderCrossedTable();
+}
 function clearCrFilters(){['crProdWrap','crClassWrap','crRiskWrap'].forEach(id=>{const cbs=document.querySelectorAll('.ms-cb-'+id);cbs.forEach(c=>c.checked=true);const a=document.getElementById(id+'_all');if(a)a.checked=true;updateMSLabel(id);});document.getElementById('crSearch').value='';renderCrossedTable();}
 function inbSort(key){
-  if(window._inbSortKey===key){window._inbSortAsc=!window._inbSortAsc;}else{window._inbSortKey=key;window._inbSortAsc=key==='name';}
+  if(window._inbSortKey===key){window._inbSortAsc=!window._inbSortAsc;}
+  else{window._inbSortKey=key;window._inbSortAsc=(key==='name');}
   renderInboundTable();
 }
 function clearInboundFilters(){['inbClsWrap','inbProdWrap','inbRiskWrap'].forEach(id=>{const cbs=document.querySelectorAll('.ms-cb-'+id);cbs.forEach(c=>c.checked=true);const a=document.getElementById(id+'_all');if(a)a.checked=true;updateMSLabel(id);});document.getElementById('inboundSearch').value='';document.getElementById('inboundStatus').value='';renderInboundTable();}
