@@ -578,7 +578,7 @@ input[type=date].inline-edit{min-width:100px;}
           <th onclick="sortTable('inboundTable',4)">Qty (t)</th>
           <th onclick="sortTable('inboundTable',5)">Ballast/Laden</th>
           <th onclick="sortTable('inboundTable',6)">Risk</th>
-          <th onclick="inbSort('date')">Date Entered MEG</th>
+          <th onclick="sortTable('inboundTable',7)">Date Entered MEG</th>
           <th onclick="sortTable('inboundTable',8)">Actual Destination</th>
           <th onclick="sortTable('inboundTable',9)">Remarks</th>
           <th onclick="sortTable('inboundTable',10)">Status</th>
@@ -1469,13 +1469,13 @@ function renderCrossedTable(){
       <button class="btn-remove" onclick="removeCrossing('${key}')">✕</button>`:'';
     const remarksVal=(info.remarks||'').replace(/"/g,'&quot;');
     return `<tr class="${trCls}">
-      <td><span class="vessel-link" onclick="openModal('${imo}')">${resolvedName}</span>${badge}</td>
+      <td data-sort="${resolvedName}"><span class="vessel-link" onclick="openModal('${imo}')">${resolvedName}</span>${badge}</td>
       <td class="imo-cell">${imo}</td>
-      <td>${resolvedCls}</td>
+      <td data-sort="${resolvedCls}">${resolvedCls}</td>
       <td>${editable?`<input class="inline-edit" value="${resolvedProduct.replace(/"/g,'&quot;')}" onchange="updateCrossed('${key}','product',this.value)">`:(resolvedProduct||'—')}</td>
       <td>${editable?`<input class="inline-edit" value="${Math.round(parseFloat(info.qty)||0)}" type="number" onchange="updateCrossed('${key}','qty',this.value)">`:(fmtNum(Math.round(parseFloat(info.qty)||0)))}</td>
       <td class="${riskCls}">${resolvedRisk||'—'}</td>
-      <td>${editable?`<input type="date" class="inline-edit" value="${info.dateCrossed||''}" onchange="updateCrossed('${key}','dateCrossed',this.value)">`:(info.dateCrossed||'—')}</td>
+      <td data-sort="${info.dateCrossed||''}">${editable?`<input type="date" class="inline-edit" value="${info.dateCrossed||''}" onchange="updateCrossed('${key}','dateCrossed',this.value)">`:(info.dateCrossed||'—')}</td>
       <td style="${origStyle}">${editable?`<input class="inline-edit" value="${resolvedOrigin.replace(/"/g,'&quot;')}" onchange="updateCrossed('${key}','origin',this.value)" style="${origStyle}">`:(resolvedOrigin||'—')}</td>
       <td style="${destStyle}">${editable?`<input class="inline-edit" value="${resolvedDest.replace(/"/g,'&quot;')}" onchange="updateCrossed('${key}','actualDest',this.value)" style="${destStyle}">`:(resolvedDest||'—')}</td>
       <td style="white-space:normal;min-width:160px;">${editable?`<textarea class="inline-edit" rows="2" style="width:100%;resize:vertical;min-width:150px;" onchange="updateCrossed('${key}','remarks',this.value)">${remarksVal}</textarea>`:(info.remarks||'—')}</td>
@@ -2007,14 +2007,14 @@ function renderInboundTable(){
     const remarksVal=(v.remarks||'').replace(/"/g,'&quot;');
     const riskCls=(v.risk||'').toLowerCase()==='high'?'risk-high':(v.risk||'').toLowerCase()==='sanctioned'?'risk-sanctioned':'';
     return `<tr>
-      <td><span class="vessel-link" onclick="openModal('${realIMO}')">${v.name||realIMO}</span></td>
+      <td data-sort="${v.name||realIMO}"><span class="vessel-link" onclick="openModal('${realIMO}')">${v.name||realIMO}</span></td>
       <td class="imo-cell">${realIMO}</td>
-      <td>${editable?`<input class="inline-edit" value="${(v.cls||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','cls',this.value)">`:(v.cls||'—')}</td>
+      <td data-sort="${v.cls||''}">${editable?`<input class="inline-edit" value="${(v.cls||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','cls',this.value)">`:(v.cls||'—')}</td>
       <td>${editable?`<input class="inline-edit" value="${(v.product||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','product',this.value)">`:(v.product||'—')}</td>
       <td>${editable?`<input class="inline-edit" value="${Math.round(qty)}" type="number" onchange="updateInbound('${k}','qty',this.value)">`:(fmtNum(Math.round(qty)))}</td>
       <td>${balladenlabel}</td>
       <td class="${riskCls}">${editable?`<input class="inline-edit" value="${(v.risk||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','risk',this.value)" style="${(v.risk||'').toLowerCase()==='sanctioned'?'color:#ec407a':''}">`:(v.risk||'—')}</td>
-      <td>${editable?`<input type="date" class="inline-edit" value="${v.dateEnteredMEG||''}" onchange="updateInbound('${k}','dateEnteredMEG',this.value)">`:(v.dateEnteredMEG||'—')}</td>
+      <td data-sort="${v.dateEnteredMEG||''}">${editable?`<input type="date" class="inline-edit" value="${v.dateEnteredMEG||''}" onchange="updateInbound('${k}','dateEnteredMEG',this.value)">`:(v.dateEnteredMEG||'—')}</td>
       <td style="${destStyle}">${editable?`<input class="inline-edit" value="${_dest.replace(/"/g,'&quot;')}" placeholder="Destination..." style="${destStyle}">`:((_dest)||'—')}</td>
       <td style="white-space:normal;min-width:160px;">${editable?`<textarea class="inline-edit" rows="2" style="width:100%;resize:vertical;min-width:150px;" onchange="updateInbound('${k}','remarks',this.value)">${remarksVal}</textarea>`:(v.remarks||'—')}</td>
       <td>${statusBadge}</td>
@@ -2710,7 +2710,9 @@ function sortTable(tableId,colIdx){
   rows.sort((a,b)=>{
     const aCell=a.cells[colIdx],bCell=b.cells[colIdx];
     if(!aCell||!bCell)return 0;
-    const aT=aCell.textContent.trim(),bT=bCell.textContent.trim();
+    // Use data-sort attribute if present (handles cells with inputs/spans)
+    const aT=(aCell.dataset.sort!==undefined?aCell.dataset.sort:aCell.textContent).trim();
+    const bT=(bCell.dataset.sort!==undefined?bCell.dataset.sort:bCell.textContent).trim();
     const aN=parseFloat(aT.replace(/,/g,'')),bN=parseFloat(bT.replace(/,/g,''));
     if(!isNaN(aN)&&!isNaN(bN))return asc?aN-bN:bN-aN;
     return asc?aT.localeCompare(bT):bT.localeCompare(aT);
