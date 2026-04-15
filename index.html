@@ -1679,7 +1679,7 @@ function buildOutboundChart(canvasId, sanctioned){
       },
       scales:{
         x:{stacked:true,ticks:{color:'#7090a8',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:20}},
-        y:{stacked:true,ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Daily Count',color:'#7090a8',font:{size:9}},min:0,max:_yMax},
+        y:{stacked:true,ticks:{color:'#7090a8',font:{size:9},stepSize:1,callback:v=>Number.isInteger(v)?v:null},title:{display:true,text:'Daily Count',color:'#7090a8',font:{size:9}},min:0,max:_yMax},
         yRight:{position:'right',ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Cumulative',color:'#7090a8',font:{size:9}},grid:{drawOnChartArea:false},min:0}
       }
     }
@@ -1946,7 +1946,7 @@ function buildInboundChart(canvasId, sanctioned){
       },
       scales:{
         x:{stacked:true,ticks:{color:'#7090a8',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:20}},
-        y:{stacked:true,ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Daily Count',color:'#7090a8',font:{size:9}},min:0,max:_yMax},
+        y:{stacked:true,ticks:{color:'#7090a8',font:{size:9},stepSize:1,callback:v=>Number.isInteger(v)?v:null},title:{display:true,text:'Daily Count',color:'#7090a8',font:{size:9}},min:0,max:_yMax},
         yRight:{position:'right',ticks:{color:'#7090a8',font:{size:9}},title:{display:true,text:'Cumulative',color:'#7090a8',font:{size:9}},grid:{drawOnChartArea:false},min:0}
       }
     }
