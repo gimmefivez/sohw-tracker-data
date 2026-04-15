@@ -482,8 +482,8 @@ input[type=date].inline-edit{min-width:100px;}
         </div>
       </div>
       <div id="editorOutboundControls" style="display:none;margin-bottom:10px;">
-        <button class="btn-sm" style="background:var(--border2);color:var(--accent);" onclick="toggleAddForm('addOutboundForm')">⊕ Add Vessel</button>
-        <button class="btn-sm" style="background:var(--border2);color:var(--text2);margin-left:6px;" onclick="renderCrossedTable()">↺ Save Changes</button>
+        <button class="btn-sm" style="background:#243a56;color:#4fc3f7;" onclick="toggleAddForm('addOutboundForm')">⊕ Add Vessel</button>
+        <button class="btn-sm" style="background:#4caf50;color:#000;margin-left:6px;font-weight:700;" onclick="saveCrossedChanges(event)">💾 Save Changes</button>
       </div>
       <div class="add-form" id="addOutboundForm">
         <div class="panel-title">Add Crossed Vessel Manually</div>
@@ -542,7 +542,8 @@ input[type=date].inline-edit{min-width:100px;}
         </div>
       </div>
       <div id="editorInboundControls" style="display:none;margin-bottom:10px;">
-        <button class="btn-sm" style="background:var(--border2);color:var(--accent);" onclick="toggleAddForm('addInboundForm')">⊕ Add Vessel</button>
+        <button class="btn-sm" style="background:#243a56;color:#4fc3f7;" onclick="toggleAddForm('addInboundForm')">⊕ Add Vessel</button>
+        <button class="btn-sm" style="background:#4caf50;color:#000;margin-left:6px;font-weight:700;" onclick="saveInboundChanges(event)">💾 Save Changes</button>
       </div>
       <div class="add-form" id="addInboundForm">
         <div class="panel-title">Add Inbound Vessel Manually</div>
@@ -570,18 +571,17 @@ input[type=date].inline-edit{min-width:100px;}
       </div>
       <div class="tbl-wrap"><table id="inboundTable">
         <thead><tr>
-          <th onclick="sortTable('inboundTable',0)">Vessel</th>
+          <th onclick="inbSort('name')">Vessel</th>
           <th onclick="sortTable('inboundTable',1)">IMO</th>
           <th onclick="sortTable('inboundTable',2)">Class</th>
           <th onclick="sortTable('inboundTable',3)">Product</th>
           <th onclick="sortTable('inboundTable',4)">Qty (t)</th>
           <th onclick="sortTable('inboundTable',5)">Ballast/Laden</th>
           <th onclick="sortTable('inboundTable',6)">Risk</th>
-          <th onclick="sortTable('inboundTable',7)">Date Entered MEG</th>
-          <th onclick="sortTable('inboundTable',8)">Origin</th>
-          <th onclick="sortTable('inboundTable',9)">Actual Destination</th>
-          <th onclick="sortTable('inboundTable',10)">Remarks</th>
-          <th onclick="sortTable('inboundTable',11)">Status</th>
+          <th onclick="inbSort('date')">Date Entered MEG</th>
+          <th onclick="sortTable('inboundTable',8)">Actual Destination</th>
+          <th onclick="sortTable('inboundTable',9)">Remarks</th>
+          <th onclick="sortTable('inboundTable',10)">Status</th>
           <th>Action</th>
         </tr></thead>
         <tbody id="inboundTbody"></tbody>
@@ -740,7 +740,8 @@ let accessLevel = null; // 'zoe' | 'internal' | 'guest'
 // STATE
 let state = {
   sessions:[],userTags:{},userComments:{},crossedIMOs:{},inboundIMOs:{},
-  soheHistory:{},editLog:[],trendProducts:['Crude','Fuel Oil'],blinkPool:{},editorMode:false
+  soheHistory:{},editLog:[],trendProducts:['Crude','Fuel Oil'],blinkPool:{},editorMode:false,
+  inboundDismissed:{}
 };
 let pendingSOHERows = [];
 let _charts = {};
@@ -792,6 +793,7 @@ function loadData(data) {
   state.editLog = data.editLog || [];
   state.trendProducts = data.trendProducts || ['Crude','Fuel Oil'];
   state.blinkPool = data.blinkPool || {};
+  state.inboundDismissed = data.inboundDismissed || {};
 }
 
 function saveDataJSON() {
@@ -805,7 +807,8 @@ function saveDataJSON() {
     soheHistory: state.soheHistory,
     editLog: state.editLog,
     trendProducts: state.trendProducts,
-    blinkPool: state.blinkPool
+    blinkPool: state.blinkPool,
+    inboundDismissed: state.inboundDismissed
   };
   const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1482,7 +1485,25 @@ function renderCrossedTable(){
   }).join('');
 }
 
-function updateCrossed(key,field,val){state.crossedIMOs[key][field]=val;logEdit('Crossing Edited',key+' / '+field+': "'+val+'"');}
+function updateCrossed(key,field,val){
+  if(!state.crossedIMOs[key])return;
+  state.crossedIMOs[key][field]=val;
+  if(!window._pendingCrossedEdits)window._pendingCrossedEdits=[];
+  window._pendingCrossedEdits.push({key,field,val});
+}
+function saveCrossedChanges(evt){
+  const edits=window._pendingCrossedEdits||[];
+  if(edits.length){
+    const keys=[...new Set(edits.map(e=>imoFromKey(e.key)))];
+    logEdit('Outbound Crossed Saved','Changes saved for: '+keys.join(', ')+' ('+edits.length+' field edit'+(edits.length!==1?'s':'')+')' );
+    window._pendingCrossedEdits=[];
+  } else {
+    logEdit('Outbound Crossed Saved','No pending changes');
+  }
+  saveAndRender();
+  const btn=evt&&evt.target?evt.target:null;
+  if(btn){const orig=btn.textContent;btn.textContent='✓ Saved';btn.style.background='#81d4fa';setTimeout(()=>{btn.textContent=orig;btn.style.background='#4caf50';},1500);}
+}
 function removeCrossing(key){if(confirm('Remove this crossing record?')){delete state.crossedIMOs[key];logEdit('Crossing Removed',key);saveAndRender();}}
 function confirmSuspicious(key){state.crossedIMOs[key].suspicious=false;logEdit('Suspicious Confirmed',key);saveAndRender();}
 
@@ -1733,6 +1754,7 @@ function detectInboundCrossings(){
       const sohwDate=sohwDates[0];
       const compositeKey=imo+'_intomeg_'+sohwDate;
       if(state.inboundIMOs[compositeKey])continue;
+      if(state.inboundDismissed&&state.inboundDismissed[compositeKey])continue;
       const r=d.rowsByDate[sohwDate][0];
       const origin=r['ORIGIN']||'';
       state.inboundIMOs[compositeKey]={soheDate,sohwDate,name:d.name,cls:d.cls,product:normProd(r['LATEST PRODUCT']),qty:parseFloat(r['QUANTITY (t)']||0),risk:r['RISK RATING']||'',origin,outsideOrigin:isOutsideMEG(origin),dateEnteredMEG:sohwDate,sourceInfo:'Auto-detected',remarks:'',confirmed:false,falseAlarm:false,manualEntry:false};
@@ -1993,7 +2015,6 @@ function renderInboundTable(){
       <td>${balladenlabel}</td>
       <td class="${riskCls}">${editable?`<input class="inline-edit" value="${(v.risk||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','risk',this.value)" style="${(v.risk||'').toLowerCase()==='sanctioned'?'color:#ec407a':''}">`:(v.risk||'—')}</td>
       <td>${editable?`<input type="date" class="inline-edit" value="${v.dateEnteredMEG||''}" onchange="updateInbound('${k}','dateEnteredMEG',this.value)">`:(v.dateEnteredMEG||'—')}</td>
-      <td style="${origStyle}">${editable?`<input class="inline-edit" value="${(v.origin||'').replace(/"/g,'&quot;')}" onchange="updateInbound('${k}','origin',this.value)" style="${origStyle}">`:(v.origin||'—')}</td>
       <td style="${destStyle}">${editable?`<input class="inline-edit" value="${_dest.replace(/"/g,'&quot;')}" placeholder="Destination..." style="${destStyle}">`:((_dest)||'—')}</td>
       <td style="white-space:normal;min-width:160px;">${editable?`<textarea class="inline-edit" rows="2" style="width:100%;resize:vertical;min-width:150px;" onchange="updateInbound('${k}','remarks',this.value)">${remarksVal}</textarea>`:(v.remarks||'—')}</td>
       <td>${statusBadge}</td>
@@ -2002,7 +2023,26 @@ function renderInboundTable(){
   }).join('');
 }
 
-function updateInbound(k,field,val){state.inboundIMOs[k][field]=val;logEdit('Inbound Edited',k+' / '+field+': "'+val+'"');}
+function updateInbound(k,field,val){
+  if(!state.inboundIMOs[k])return;
+  state.inboundIMOs[k][field]=val;
+  if(!window._pendingInboundEdits)window._pendingInboundEdits=[];
+  window._pendingInboundEdits.push({k,field,val});
+}
+function saveInboundChanges(evt){
+  const edits=window._pendingInboundEdits||[];
+  if(edits.length){
+    const keys=[...new Set(edits.map(e=>e.k))];
+    const names=keys.map(k=>state.inboundIMOs[k]?.name||imoFromKey(k)).join(', ');
+    logEdit('Inbound Crossed Saved','Changes saved for: '+names+' ('+edits.length+' field edit'+(edits.length!==1?'s':'')+')' );
+    window._pendingInboundEdits=[];
+  } else {
+    logEdit('Inbound Crossed Saved','No pending changes');
+  }
+  saveAndRender();
+  const btn=evt&&evt.target?evt.target:null;
+  if(btn){const orig=btn.textContent;btn.textContent='✓ Saved';btn.style.background='#81d4fa';setTimeout(()=>{btn.textContent=orig;btn.style.background='#4caf50';},1500);}
+}
 function confirmInbound(k){
   state.inboundIMOs[k].confirmed=true;
   const realIMO=imoFromKey(k);
@@ -2016,8 +2056,10 @@ function confirmInbound(k){
 function rejectInbound(k){
   const v=state.inboundIMOs[k];
   const realIMO=imoFromKey(k);
+  if(!state.inboundDismissed)state.inboundDismissed={};
+  state.inboundDismissed[k]=true;
   delete state.inboundIMOs[k];
-  logEdit('Inbound Rejected',(v?.name||realIMO)+' ('+realIMO+')');
+  logEdit('Inbound Removed',(v?.name||realIMO)+' ('+realIMO+')');
   saveAndRender();
 }
 function submitAddInbound(){
@@ -2679,6 +2721,10 @@ function sortTable(tableId,colIdx){
 function toggleAddForm(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'||!el.style.display?'block':'none';}
 
 function clearCrFilters(){['crProdWrap','crClassWrap','crRiskWrap'].forEach(id=>{const cbs=document.querySelectorAll('.ms-cb-'+id);cbs.forEach(c=>c.checked=true);const a=document.getElementById(id+'_all');if(a)a.checked=true;updateMSLabel(id);});document.getElementById('crSearch').value='';renderCrossedTable();}
+function inbSort(key){
+  if(window._inbSortKey===key){window._inbSortAsc=!window._inbSortAsc;}else{window._inbSortKey=key;window._inbSortAsc=key==='name';}
+  renderInboundTable();
+}
 function clearInboundFilters(){['inbClsWrap','inbProdWrap','inbRiskWrap'].forEach(id=>{const cbs=document.querySelectorAll('.ms-cb-'+id);cbs.forEach(c=>c.checked=true);const a=document.getElementById(id+'_all');if(a)a.checked=true;updateMSLabel(id);});document.getElementById('inboundSearch').value='';document.getElementById('inboundStatus').value='';renderInboundTable();}
 </script>
 </body>
