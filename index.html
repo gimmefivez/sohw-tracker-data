@@ -1130,7 +1130,7 @@ function renderProductQtyChart(){
   const datasets=prods.map((p,i)=>({label:p,data:dates.map(d=>prodMap[p][d]||0),backgroundColor:getProdColor(p,i),stack:'a'}));
   const _hasCrude=prods.includes('Crude');
   const ctx=document.getElementById('productQtyChart').getContext('2d');
-  _charts['productQtyChart']=new Chart(ctx,{type:'bar',data:{labels:dates,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.max>10000000){if(ax.min<12000000)ax.min=12000000;}else{ax.min=0;}}}}}});
+  _charts['productQtyChart']=new Chart(ctx,{type:'bar',data:{labels:dates,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.max>10000000){if(ax.min<12000000)ax.min=12000000;}else{ax.min=0;}}}}}});
 }
 
 function renderVesselCountChart(){
