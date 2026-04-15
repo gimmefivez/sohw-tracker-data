@@ -1130,7 +1130,7 @@ function renderProductQtyChart(){
   const datasets=prods.map((p,i)=>({label:p,data:dates.map(d=>prodMap[p][d]||0),backgroundColor:getProdColor(p,i),stack:'a'}));
   const _hasCrude=prods.includes('Crude');
   const ctx=document.getElementById('productQtyChart').getContext('2d');
-  _charts['productQtyChart']=new Chart(ctx,{type:'bar',data:{labels:dates,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(_hasCrude&&ax.min<12000000)ax.min=12000000;}}}}});
+  _charts['productQtyChart']=new Chart(ctx,{type:'bar',data:{labels:dates,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.max>10000000){if(ax.min<12000000)ax.min=12000000;}else{ax.min=0;}}}}}});
 }
 
 function renderVesselCountChart(){
@@ -1329,7 +1329,7 @@ function renderProductTrends(){
   const datasets2=outProds.map((p,i)=>({label:p,data:dates.map(d=>(outsideMap[p]||{})[d]||0),backgroundColor:getProdColor(p,i),stack:'a'}));
   const _hasCrudeOutside=outProds.includes('Crude');
   const ctx2=document.getElementById('outsideMegBar').getContext('2d');
-  _charts['outsideMegBar']=new Chart(ctx2,{type:'bar',data:{labels:dates,datasets:datasets2},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(_hasCrudeOutside&&ax.min<8000000)ax.min=8000000;}}}}});
+  _charts['outsideMegBar']=new Chart(ctx2,{type:'bar',data:{labels:dates,datasets:datasets2},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7090a8',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#7090a8',font:{size:10}}},y:{stacked:true,ticks:{color:'#7090a8',font:{size:10}},afterDataLimits(ax){if(ax.max>6000000){if(ax.min<8000000)ax.min=8000000;}else{ax.min=0;}}}}}});
   // Summary table - all sessions + diff last 2
   const tb=document.getElementById('productSummaryTbody');
   const allSessionDates=dates;
